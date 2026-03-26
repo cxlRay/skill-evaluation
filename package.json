@@ -1,0 +1,21 @@
+{
+  "name": "skill-evaluation",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "build": "node -e \"const fs=require('fs'); const files=['config','state','utils','api','upload','eval','render','export','main']; const out=files.map(f=>fs.readFileSync('ts/'+f+'.ts','utf8')).join('\\n'); fs.writeFileSync('dist/bundle.js',out);\"",
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "esbuild": "^0.27.4",
+    "typescript": "^6.0.2"
+  }
+}

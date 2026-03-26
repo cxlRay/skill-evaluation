@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(curl -s http://localhost:8080/js/config.js)",
+      "Bash(npm init:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(npx esbuild:*)",
+      "Bash(npx tsc:*)",
+      "Bash(node -e \"console.log\\(require\\(''fs''\\).readFileSync\\(''js/config.js'', ''utf8''\\).slice\\(0, 200\\)\\)\")",
+      "Bash(xxd js/config.js)",
+      "Bash(xxd /tmp/config.test.js)",
+      "Bash(xxd)",
+      "Bash(node --check js/config.js)",
+      "Bash(ls *.json)",
+      "Bash(node --check dist/bundle.js)",
+      "Bash(netstat -ano)",
+      "Bash(curl -s http://localhost:8080/)",
+      "Bash(curl -s http://localhost:8080/skill_evaluator_web.html)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
