@@ -176,6 +176,18 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(12
 .compare-panel.visible{display:block;}
 .compare-panel h3{font-family:var(--font-display);font-size:15px;font-weight:800;margin-bottom:16px;display:flex;align-items:center;gap:8px;}
 .compare-text{color:var(--text2);line-height:1.9;font-size:14px;white-space:pre-wrap;}
+
+/* Optimization Panel */
+.optimization-panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;margin-bottom:20px;}
+.optimization-item{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px;}
+.optimization-priority{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;margin-left:8px;}
+.optimization-priority.high{background:rgba(239,68,68,.2);color:var(--danger);}
+.optimization-priority.medium{background:rgba(245,158,11,.2);color:var(--warning);}
+.optimization-priority.low{background:rgba(16,185,129,.2);color:var(--success);}
+.optimization-area{font-weight:600;color:var(--accent);font-size:12px;}
+.optimization-suggestion{font-size:13px;color:var(--text2);margin:8px 0;}
+.optimization-example{font-family:var(--font-mono);font-size:11px;color:var(--text3);background:var(--surface3);padding:8px;border-radius:6px;margin-top:8px;}
+.optimization-summary{font-size:13px;color:var(--text);padding:12px;background:var(--surface3);border-radius:8px;border-left:3px solid var(--accent);}
 .export-row{display:flex;gap:10px;justify-content:flex-end;margin-bottom:24px;}
 
 ::-webkit-scrollbar{width:6px;height:6px;}::-webkit-scrollbar-track{background:var(--surface2);}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px;}
@@ -189,6 +201,21 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(12
 
 /* Divider */
 .divider{height:1px;background:var(--border);margin:18px 0;}
+
+/* Advanced Tabs */
+.adv-tabs{display:flex;gap:8px;margin-bottom:16px;}
+.adv-tab{padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);font-size:12px;color:var(--text2);cursor:pointer;transition:all .2s;}
+.adv-tab:hover{border-color:var(--border2);}
+.adv-tab.active{background:var(--accent);color:white;border-color:var(--accent);}
+.adv-section{display:none;}
+.adv-section.active{display:block;}
+
+/* Regression Alert */
+.regression-alert{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:12px;margin-top:10px;font-size:12px;color:var(--danger);}
+.regression-alert.success{background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.3);color:var(--success);}
+
+/* Version Badge */
+.version-badge{font-size:10px;padding:2px 6px;border-radius:4px;background:var(--accent2);color:white;font-weight:600;}
 </style>
 </head>
 <body>
@@ -300,20 +327,78 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(12
         <input type="number" id="n-evals" value="4" min="1" max="10">
       </div>
       <div>
+        <label>测试用例来源</label>
+        <select id="benchmark-source">
+          <option value="generated">自动生成</option>
+        </select>
+      </div>
+      <div>
         <label>多 SKILL 横向对比分析</label>
         <select id="do-compare">
           <option value="yes">开启（自动生成对比）</option>
           <option value="no">关闭</option>
         </select>
       </div>
+    </div>
+    <div class="settings-row">
       <div>
         <label>MAX TOKENS / 请求</label>
         <input type="number" id="max-tokens" value="4096" min="512" max="32000">
+      </div>
+      <div>
+        <label>稳定性测试（重复次数）</label>
+        <input type="number" id="stability-runs" value="0" min="0" max="5" placeholder="0=关闭">
+      </div>
+      <div>
       </div>
     </div>
     <div class="run-area">
       <button class="btn btn-primary" id="btn-run" onclick="startEval()" disabled>▶&nbsp; 开始评测</button>
       <div class="run-info" id="run-info">请先完成 API 配置并上传 Skill 文件</div>
+    </div>
+  </div>
+
+  <!-- ── STEP 4: Benchmark Management ── -->
+  <div class="card" id="benchmark-section" style="display:none;">
+    <div class="card-title">Benchmark 数据集管理</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:12px">
+      上传 .benchmark.json 或 .jsonl 格式的测试数据集，支持以下格式：
+    </div>
+    <div style="background:var(--surface2);padding:12px;border-radius:8px;margin-bottom:14px;font-family:var(--font-mono);font-size:11px;color:var(--text2)">
+      <div>JSON: {"name":"xxx","version":"1.0","test_cases":[{"prompt":"...","expected":"...","category":"math"}]}</div>
+      <div style="margin-top:6px">JSONL: {"prompt":"...","expected":"..."}</div>
+    </div>
+    <div id="benchmark-list"></div>
+    <div class="divider"></div>
+  </div>
+
+  <!-- ── STEP 5: Regression Test ── -->
+  <div class="card" id="regression-section" style="display:none;">
+    <div class="card-title">自动回归测试</div>
+    <div class="settings-row">
+      <div>
+        <label>回归测试</label>
+        <select id="regression-mode">
+          <option value="manual">手动触发</option>
+          <option value="auto">定时自动执行</option>
+        </select>
+      </div>
+      <div id="regression-interval-container" style="display:none;">
+        <label>执行间隔（分钟）</label>
+        <input type="number" id="regression-interval" value="60" min="5" max="1440">
+      </div>
+      <div>
+        <label>分数下降告警阈值（%）</label>
+        <input type="number" id="regression-threshold" value="15" min="0" max="50">
+      </div>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:10px;">
+      <button class="btn btn-ghost btn-sm" onclick="runRegressionTest()">▶ 立即执行回归测试</button>
+      <button class="btn btn-ghost btn-sm" onclick="clearRegressionHistory()">🗑 清除历史</button>
+    </div>
+    <div style="margin-top:14px">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:8px">最近执行记录</div>
+      <div id="regression-history" style="max-height:150px;overflow-y:auto;"></div>
     </div>
   </div>
 
@@ -332,6 +417,7 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(12
     <div class="export-row">
       <button class="btn btn-ghost btn-sm" onclick="exportJSON()">⬇ 导出 JSON</button>
       <button class="btn btn-ghost btn-sm" onclick="exportHTML()">⬇ 导出 HTML 报告</button>
+      <button class="btn btn-ghost btn-sm" id="btn-optimize" onclick="showOptimizationPanelActive()">💡 优化建议</button>
     </div>
     <div class="results-header"><div>🏆</div><h2>评测结果</h2></div>
     <div class="score-grid" id="score-grid"></div>
@@ -342,6 +428,13 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(12
     <div class="compare-panel" id="compare-panel">
       <h3>🆚 横向对比分析</h3>
       <div class="compare-text" id="compare-text"></div>
+    </div>
+    <div class="optimization-panel" id="optimization-panel" style="display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <h3 style="font-family:var(--font-display);font-size:15px;font-weight:800;">💡 优化建议</h3>
+        <button class="btn btn-ghost btn-sm" onclick="generateSuggestions()">🔄 重新生成</button>
+      </div>
+      <div id="optimization-content"></div>
     </div>
     <div class="detail-panel" id="detail-panel">
       <div class="detail-top">

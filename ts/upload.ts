@@ -9,11 +9,12 @@ UZ.addEventListener('drop',e=>{e.preventDefault();UZ.classList.remove('drag-over
 FI.addEventListener('change',e=>handleFiles(e.target.files));
 
 // 支持的文件类型
-const SUPPORTED_EXTENSIONS = ['.md', '.skill', '.zip'];
+const SUPPORTED_EXTENSIONS = ['.md', '.skill', '.zip', '.benchmark.json', '.jsonl', '.chain.json', '.versions.json'];
 
 function handleFiles(files) {
   Array.from(files).forEach(async f=>{
     const ext = '.' + f.name.split('.').pop().toLowerCase();
+    const baseName = f.name.replace(ext, '');
 
     if (!SUPPORTED_EXTENSIONS.includes(ext)) {
       toast(`不支持的文件类型: ${f.name}`,'error');
@@ -22,10 +23,175 @@ function handleFiles(files) {
 
     if (ext === '.zip') {
       await handleZipFile(f);
+    } else if (ext === '.benchmark.json' || ext === '.jsonl') {
+      await handleBenchmarkFile(f);
+    } else if (ext === '.chain.json') {
+      await handleChainFile(f);
+    } else if (ext === '.versions.json') {
+      await handleVersionsFile(f);
     } else if (ext === '.md' || ext === '.skill') {
       handleMdFile(f);
     }
   });
+}
+
+// 处理 Benchmark 数据集文件
+async function handleBenchmarkFile(f) {
+  try {
+    const content = await f.text();
+    let benchmark;
+
+    if (f.name.endsWith('.jsonl')) {
+      // JSONL 格式: 每行一个测试用例
+      const lines = content.split('\n').filter(l => l.trim());
+      const testCases = lines.map((line, i) => {
+        try {
+          const obj = JSON.parse(line);
+          return {
+            id: obj.id || i + 1,
+            prompt: obj.prompt || obj.input || obj.question,
+            expected_output: obj.expected || obj.output || obj.answer,
+            expectations: obj.expectations || (obj.answer ? [obj.answer] : []),
+            category: obj.category || obj.type || 'general',
+            difficulty: obj.difficulty || 'medium'
+          };
+        } catch {
+          return null;
+        }
+      }).filter(Boolean);
+
+      benchmark = {
+        name: baseName,
+        version: '1.0',
+        test_cases: testCases
+      };
+    } else {
+      // JSON 格式
+      benchmark = JSON.parse(content);
+
+      // 标准化格式
+      if (!benchmark.test_cases && benchmark.tests) {
+        benchmark.test_cases = benchmark.tests;
+      }
+
+      if (!benchmark.name) {
+        benchmark.name = baseName;
+      }
+      if (!benchmark.version) {
+        benchmark.version = '1.0';
+      }
+    }
+
+    // 验证必要的字段
+    if (!benchmark.test_cases || !Array.isArray(benchmark.test_cases)) {
+      toast(`Benchmark 文件格式错误: ${f.name}`,'error');
+      return;
+    }
+
+    // 添加到 benchmark 列表
+    const existingIdx = benchmarks.findIndex(b => b.name === benchmark.name);
+    if (existingIdx >= 0) {
+      benchmarks[existingIdx] = { ...benchmark, file: f.name };
+    } else {
+      benchmarks.push({ ...benchmark, file: f.name });
+    }
+
+    renderBenchmarkList();
+    toast(`已加载 Benchmark: ${benchmark.name} (${benchmark.test_cases.length} 个用例)`,'success');
+
+  } catch (e) {
+    console.error('Benchmark 解析失败:', e);
+    toast(`解析失败: ${e.message}`,'error');
+  }
+}
+
+// 处理链路配置文件
+async function handleChainFile(f) {
+  try {
+    const content = await f.text();
+    chainConfig = JSON.parse(content);
+
+    if (!chainConfig.steps || !Array.isArray(chainConfig.steps)) {
+      toast('Chain 配置格式错误','error');
+      return;
+    }
+
+    toast(`已加载链路配置: ${chainConfig.steps.length} 个步骤`,'success');
+  } catch (e) {
+    toast(`解析失败: ${e.message}`,'error');
+  }
+}
+
+// 处理版本配置文件
+async function handleVersionsFile(f) {
+  try {
+    const content = await f.text();
+    const versions = JSON.parse(content);
+
+    if (!versions.versions || !Array.isArray(versions.versions)) {
+      toast('Versions 配置格式错误','error');
+      return;
+    }
+
+    // 存储版本信息
+    for (const v of versions.versions) {
+      if (v.name && v.content) {
+        if (!skillVersions[v.name]) {
+          skillVersions[v.name] = [];
+        }
+        skillVersions[v.name].push({
+          version: v.version || 'v1',
+          content: v.content,
+          description: v.description || ''
+        });
+      }
+    }
+
+    toast(`已加载 ${versions.versions.length} 个版本`,'success');
+  } catch (e) {
+    toast(`解析失败: ${e.message}`,'error');
+  }
+}
+
+function renderBenchmarkList() {
+  const container = document.getElementById('benchmark-list');
+  if (!container) return;
+
+  container.innerHTML = benchmarks.map((b, i) => `
+    <div class="file-item" style="background: var(--surface3);">
+      <span>📊</span>
+      <span class="file-name">${b.name} (v${b.version})</span>
+      <span class="file-size">${b.test_cases?.length || 0} 用例</span>
+      <button class="file-remove" onclick="removeBenchmark(${i})">✕</button>
+    </div>
+  `).join('');
+
+  // Update benchmark source select
+  const select = document.getElementById('benchmark-source');
+  if (select) {
+    select.innerHTML = '<option value="generated">自动生成</option>' +
+      benchmarks.map(b => `<option value="${b.name}">${b.name} (${b.test_cases?.length || 0})</option>`).join('');
+  }
+
+  // Show benchmark section if there are benchmarks
+  const section = document.getElementById('benchmark-section');
+  if (section) {
+    section.style.display = benchmarks.length > 0 ? 'block' : 'none';
+  }
+}
+
+function removeBenchmark(i) {
+  benchmarks.splice(i, 1);
+  renderBenchmarkList();
+}
+
+// 检测文件名中的版本号
+function detectVersion(filename) {
+  const match = filename.match(/_v(\d+)[^.]*\.md$|_v(\d+)[^.]*\.skill$/i);
+  if (match) {
+    return 'v' + (match[1] || match[2]);
+  }
+  return null;
 }
 
 // 处理单个 MD 文件
@@ -36,12 +202,38 @@ function handleMdFile(f) {
     if (uploadedFiles.some(x => x.name === f.name)) {
       uploadedFiles = uploadedFiles.filter(x => x.name !== f.name);
     }
+
+    // 检测版本号
+    const version = detectVersion(f.name);
+    const baseName = f.name.replace(/\.md$|\.skill$/, '').replace(/_v\d+$/, '');
+
+    // 提取技能名称（去掉版本号）
+    const skillName = baseName.replace(/_[\w]+$/, '');
+
     uploadedFiles.push({
       name: f.name,
       content: e.target.result,
       size: f.size,
-      type: 'single'
+      type: 'single',
+      version: version,
+      skillName: skillName  // 用于版本对比的基础名称
     });
+
+    // 如果检测到版本号，添加到版本追踪
+    if (version) {
+      if (!skillVersions[skillName]) {
+        skillVersions[skillName] = [];
+      }
+      // 避免重复版本
+      if (!skillVersions[skillName].find(v => v.version === version)) {
+        skillVersions[skillName].push({
+          version: version,
+          content: e.target.result,
+          file: f.name
+        });
+      }
+    }
+
     renderFileList();
     updateRunInfo();
   };

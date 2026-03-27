@@ -25,3 +25,54 @@ const DIM_CN = { trigger_accuracy:'触发准确', output_quality:'输出质量',
 const GC = { S:'#7c3aed', A:'#2563eb', B:'#16a34a', C:'#d97706', D:'#dc2626', F:'#4b5563' };
 const PAL = ['#7c6aff', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#06b6d4'];
 const SC = s => s>=8?'var(--success)':s>=6?'var(--warning)':'var(--danger)';
+
+// ══════════════════════════════════════════════
+// COST CONFIG (per 1M tokens, USD)
+// ══════════════════════════════════════════════
+const COST_PER_MILLION = {
+  // Anthropic models
+  'claude-sonnet-4-20250514': { input: 3.00, output: 15.00 },
+  'claude-sonnet-4-6': { input: 3.00, output: 15.00 },
+  'claude-haiku-4-5-20251001': { input: 0.80, output: 4.00 },
+  // OpenAI models
+  'gpt-4o': { input: 2.50, output: 10.00 },
+  'gpt-4o-mini': { input: 0.15, output: 0.60 },
+  'gpt-4-turbo': { input: 10.00, output: 30.00 },
+  // DeepSeek
+  'deepseek-chat': { input: 0.14, output: 0.28 },
+  'deepseek-reasoner': { input: 0.55, output: 2.19 },
+  // SiliconFlow (Qwen, etc.)
+  'Qwen/Qwen2.5-72B-Instruct': { input: 0.40, output: 0.40 },
+  'deepseek-ai/DeepSeek-V3': { input: 0.07, output: 0.70 },
+  // Zhipu
+  'glm-4-plus': { input: 1.00, output: 1.00 },
+  'glm-4-flash': { input: 0.00, output: 0.00 },
+  'glm-4-air': { input: 0.00, output: 0.00 },
+  // Moonshot
+  'moonshot-v1-8k': { input: 12.00, output: 12.00 },
+  // Ollama (free, no cost)
+  'llama3.1': { input: 0, output: 0 },
+  'qwen2.5': { input: 0, output: 0 },
+  // Default fallback
+  'default': { input: 1.00, output: 3.00 }
+};
+
+function getCostPerModel(model) {
+  // Exact match
+  if (COST_PER_MILLION[model]) return COST_PER_MILLION[model];
+  // Partial match for unknown models
+  const modelLower = model.toLowerCase();
+  if (modelLower.includes('claude')) return COST_PER_MILLION['claude-sonnet-4-20250514'];
+  if (modelLower.includes('gpt-4o-mini') || modelLower.includes('mini')) return COST_PER_MILLION['gpt-4o-mini'];
+  if (modelLower.includes('gpt-4o')) return COST_PER_MILLION['gpt-4o'];
+  if (modelLower.includes('deepseek')) return COST_PER_MILLION['deepseek-chat'];
+  if (modelLower.includes('qwen')) return COST_PER_MILLION['Qwen/Qwen2.5-72B-Instruct'];
+  if (modelLower.includes('glm')) return COST_PER_MILLION['glm-4-plus'];
+  if (modelLower.includes('llama') || modelLower.includes('ollama')) return COST_PER_MILLION['llama3.1'];
+  return COST_PER_MILLION['default'];
+}
+
+function calculateCost(usage, model) {
+  const rates = getCostPerModel(model);
+  return (usage.input_tokens / 1e6 * rates.input) + (usage.output_tokens / 1e6 * rates.output);
+}

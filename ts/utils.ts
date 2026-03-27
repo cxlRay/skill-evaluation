@@ -17,3 +17,6 @@ function doCompare() {
 function getMaxTokens() {
   return parseInt(document.getElementById('max-tokens').value) || 32000;
 }
+function getStabilityRuns() {
+  return parseInt(document.getElementById('stability-runs').value) || 0;
+}

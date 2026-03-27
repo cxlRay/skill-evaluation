@@ -2,6 +2,7 @@
 // ══════════════════════════════════════════════
 // UNIVERSAL API CALLER
 // Anthropic Messages API  +  OpenAI Chat Completions (compatible)
+// Returns: { content: string, usage: { input_tokens, output_tokens, total_tokens } }
 // ══════════════════════════════════════════════
 async function callApi(messages, systemPrompt='') {
   const P   = PROVIDERS[curProvider];
@@ -45,12 +46,35 @@ async function callApi(messages, systemPrompt='') {
   }
   const data = await resp.json();
 
-  // Parse response
+  // Parse response and extract usage
+  let content = '';
+  let usage = { input_tokens: 0, output_tokens: 0, total_tokens: 0 };
+
   if (fmt === 'anthropic') {
-    return (data.content||[]).map(b=>b.type==='text'?b.text:'').join('');
+    content = (data.content||[]).map(b=>b.type==='text'?b.text:'').join('');
+    // Anthropic usage format
+    usage = {
+      input_tokens: data.usage?.input_tokens || 0,
+      output_tokens: data.usage?.output_tokens || 0,
+      total_tokens: (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0)
+    };
   } else {
-    return data.choices?.[0]?.message?.content || '';
+    content = data.choices?.[0]?.message?.content || '';
+    // OpenAI-compatible usage format
+    usage = {
+      input_tokens: data.usage?.prompt_tokens || data.usage?.input_tokens || 0,
+      output_tokens: data.usage?.completion_tokens || data.usage?.output_tokens || 0,
+      total_tokens: data.usage?.total_tokens || 0
+    };
   }
+
+  return { content, usage };
+}
+
+// Simple wrapper for backward compatibility - returns just the content
+async function callApiContent(messages, systemPrompt='') {
+  const result = await callApi(messages, systemPrompt);
+  return result.content;
 }
 
 function parseJson(text) {
@@ -74,7 +98,7 @@ async function testConnection() {
   dot.textContent='●'; txt.textContent='连接中...';
   btn.disabled=true; btn.textContent='验证中...';
   try {
-    await callApi([{role:'user',content:'Reply with just: OK'}]);
+    const result = await callApi([{role:'user',content:'Reply with just: OK'}]);
     badge.className='status-badge ok';
     txt.textContent=`连接成功 · ${curProvider} · ${getModel()}`;
     toast('连接成功','success'); updateRunInfo();

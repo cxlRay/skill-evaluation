@@ -11,6 +11,7 @@ function renderResults(){
       <div class="score-grade" style="background:${GC[r.score.grade]||'#4b5563'}22;color:${GC[r.score.grade]||'#94a3b8'}">${r.score.grade}</div>
       <div class="score-name">${r.skill_name}</div>
       <div class="score-sub">通过率 ${(r.score.avg_pass_rate*100).toFixed(0)}% · ${r.score.eval_count} 用例</div>
+      <div class="score-sub" style="color:var(--accent3)">💰 ${formatCost(r.score.total_cost_usd || 0)} · ${formatTokens(r.score.total_tokens?.total || 0)} tokens</div>
       <div style="font-size:10px;color:var(--text3);font-family:var(--font-mono);margin-top:3px">${r.provider||''} · ${r.model||''}</div>
     </div>`).join('');
   renderCharts(sorted);
@@ -48,7 +49,7 @@ function showDetail(name){
   document.getElementById('detail-score').style.color=SC(sc.total_score);
   const dg=document.getElementById('detail-grade');
   dg.textContent=sc.grade;dg.style.background=(GC[sc.grade]||'#4b5563')+'22';dg.style.color=GC[sc.grade]||'#94a3b8';
-  document.getElementById('detail-stats').textContent=`通过率 ${(sc.avg_pass_rate*100).toFixed(0)}%  ·  ${sc.eval_count} 用例  ·  ${sc.total_duration_seconds}s`;
+  document.getElementById('detail-stats').textContent=`通过率 ${(sc.avg_pass_rate*100).toFixed(0)}%  ·  ${sc.eval_count} 用例  ·  ${sc.total_duration_seconds}s · 💰${formatCost(sc.total_cost_usd||0)} · ${formatTokens(sc.total_tokens?.total||0)} tokens`;
   document.getElementById('dim-grid').innerHTML=Object.entries(sc.dimensions).map(([d,v])=>`
     <div class="dim-row">
       <div class="dim-label">${DIM_CN[d]||d}</div>
@@ -86,4 +87,84 @@ function showDetail(name){
   }).join('')||'<p style="color:var(--text3);font-size:13px">暂无数据</p>';
   document.getElementById('detail-panel').classList.add('visible');
   document.getElementById('detail-panel').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+// ══════════════════════════════════════════════
+// OPTIMIZATION PANEL
+// ══════════════════════════════════════════════
+async function showOptimizationPanel(skillName) {
+  const panel = document.getElementById('optimization-panel');
+  const content = document.getElementById('optimization-content');
+  const result = evalResults.find(r => r.skill_name === skillName);
+
+  if (!result) return;
+
+  // 检查缓存
+  const cached = getOptimizationSuggestions(skillName);
+  if (cached) {
+    renderOptimizationContent(cached.suggestions);
+    return;
+  }
+
+  // 生成建议
+  content.innerHTML = '<div style="color:var(--text3);font-size:13px;">正在生成优化建议...</div>';
+  panel.style.display = 'block';
+
+  const suggestions = await generateOptimizationSuggestions(result);
+  if (suggestions) {
+    renderOptimizationContent(suggestions);
+  } else {
+    content.innerHTML = '<div style="color:var(--danger);font-size:13px;">生成优化建议失败</div>';
+  }
+}
+
+function renderOptimizationContent(suggestions) {
+  const content = document.getElementById('optimization-content');
+  if (!content) return;
+
+  const panel = document.getElementById('optimization-panel');
+
+  if (!suggestions || !suggestions.improvements) {
+    content.innerHTML = '<div style="color:var(--text3);font-size:13px;">暂无优化建议</div>';
+    panel.style.display = 'block';
+    return;
+  }
+
+  const items = suggestions.improvements.map(imp => `
+    <div class="optimization-item">
+      <div class="optimization-area">${imp.area || '通用改进'}<span class="optimization-priority ${imp.priority || 'medium'}">${imp.priority || 'medium'}</span></div>
+      <div class="optimization-suggestion">${imp.suggestion || ''}</div>
+      ${imp.example ? `<div class="optimization-example">${imp.example}</div>` : ''}
+    </div>
+  `).join('');
+
+  const summary = suggestions.summary ? `<div class="optimization-summary">📋 ${suggestions.summary}</div>` : '';
+
+  content.innerHTML = items + summary;
+  panel.style.display = 'block';
+}
+
+// Helper to call from global scope
+function generateSuggestions() {
+  const activeCard = document.querySelector('.score-card.active');
+  if (activeCard) {
+    const skillName = activeCard.querySelector('.score-name')?.textContent;
+    if (skillName) {
+      showOptimizationPanel(skillName);
+    }
+  }
+}
+
+function showOptimizationPanelActive() {
+  const activeCard = document.querySelector('.score-card.active');
+  if (activeCard) {
+    const skillName = activeCard.querySelector('.score-name')?.textContent;
+    if (skillName) {
+      showOptimizationPanel(skillName);
+    } else {
+      toast('请先选择一个Skill查看','info');
+    }
+  } else {
+    toast('请先执行评测','info');
+  }
 }
