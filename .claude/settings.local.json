@@ -2,7 +2,6 @@
   "permissions": {
     "allow": [
       "Bash(python:*)",
-      "Bash(curl -s http://localhost:8080/js/config.js)",
       "Bash(npm init:*)",
       "Bash(npm install:*)",
       "Bash(npm run:*)",
@@ -16,8 +15,6 @@
       "Bash(ls *.json)",
       "Bash(node --check dist/bundle.js)",
       "Bash(netstat -ano)",
-      "Bash(curl -s http://localhost:8080/)",
-      "Bash(curl -s http://localhost:8080/skill_evaluator_web.html)",
       "Bash(git init:*)",
       "Bash(git add:*)"
     ]
